@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Racing Challenge</title>
+    <!-- Load Three.js library for 3D graphics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            background-color: #0d1b2a;
+            color: #e0fbff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        #game-container {
+            position: relative;
+            background: #1c2e4a;
+            border-radius: 15px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+            padding: 0; /* Remove padding to maximize canvas space */
+            max-width: 95%;
+            width: 800px;
+            height: 500px;
+            overflow: hidden;
+        }
+
+        #renderer-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .ui-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 27, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 15px;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: opacity 0.5s ease;
+        }
+
+        .hidden-ui {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .selection-group {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .selection-group h2 {
+            font-size: 1.5rem;
+            color: #84a98c;
+            margin-bottom: 15px;
+        }
+
+        .options-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap; /* Allow wrapping for small screens */
+        }
+
+        .option-button {
+            background: #3a506b;
+            color: #e0fbff;
+            border: 2px solid #3a506b;
+            padding: 10px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+
+        .option-button:hover {
+            background: #5b768d;
+            border-color: #5b768d;
+        }
+
+        .option-button.selected {
+            background: #ff6b6b;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
+            transform: scale(1.05);
+        }
+
+        .car-option {
+            width: 60px;
+            height: 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 3px solid transparent;
+        }
+
+        .car-option.selected {
+            transform: scale(1.2);
+            border-color: #e0fbff;
+            box-shadow: 0 0 10px #e0fbff;
+        }
+
+        #start-race-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+            text-transform: uppercase;
+            margin-top: 20px;
+        }
+
+        #start-race-button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        #start-race-button:hover:not(:disabled) {
+            background-color: #388e3c;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.6);
+        }
+
+        #race-info {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 11;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        #game-over-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 12;
+            padding: 20px;
+            background: rgba(28, 46, 74, 0.95);
+            border: 3px solid #ff6b6b;
+            border-radius: 15px;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+
+        #game-over-message.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #loss-suggestion {
+            margin-bottom: 15px; 
+            font-style: italic; 
+            color: #f0f0f0;
+        }
+
+        #restart-button {
+            background: #ff6b6b;
+            margin-top: 15px;
+        }
+
+        #restart-button:hover {
+            background: #e65252;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+            z-index: 11;
+        }
+
+        /* CODE INPUT STYLES */
+        #code-entry-btn {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: #6b8bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            z-index: 11;
+            transition: background-color 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            line-height: 1.2;
+        }
+        #code-entry-btn:hover {
+            background-color: #4f6bd6;
+        }
+        #code-entry-btn.hidden {
+            display: none;
+        }
+        #code-hint {
+            font-size: 0.7rem;
+            font-weight: normal;
+            transition: color 0.3s;
+        }
+
+        #code-modal {
+            background: rgba(13, 27, 42, 0.98);
+            border: 3px solid #6b8bff;
+            box-shadow: 0 0 30px rgba(107, 139, 255, 0.5);
+            padding: 30px;
+            max-width: 350px;
+            width: 80%;
+            height: auto;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 15px;
+        }
+
+        #code-input {
+            width: 100%;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border: 1px solid #6b8bff;
+            background: #2a3c50;
+            color: #e0fbff;
+            text-align: center;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+        }
+        #code-message {
+            font-weight: bold;
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="renderer-container"></div>
+    
+    <div id="selection-ui" class="ui-panel">
+        <h1>Welcome to the 3D Race!</h1>
+
+        <div class="selection-group">
+            <h2>1. Choose Your Driver</h2>
+            <div class="options-container">
+                <button class="option-button" data-type="driver" data-value="Boy" id="driver-boy">👦 Boy</button>
+                <button class="option-button" data-type="driver" data-value="Girl" data-value="Girl" id="driver-girl">👧 Girl</button>
+            </div>
+        </div>
+
+        <div class="selection-group">
+            <h2>2. Select Your Car Color</h2>
+            <div class="options-container">
+                <div class="car-option" data-type="car" data-value="#ff6b6b" style="background-color: #ff6b6b;"></div>
+                <div class="car-option" data-type="car" data-value="#84a98c" style="background-color: #84a98c;"></div>
+                <div class="car-option" data-type="car" data-value="#6b8bff" style="background-color: #6b8bff;"></div>
+            </div>
+        </div>
+        
+        <button id="start-race-button" disabled>Select Driver and Car to Start</button>
+    </div>
+
+    <div id="code-modal" class="ui-panel hidden-ui">
+        <h2>Secret Code Entry</h2>
+        <input type="text" id="code-input" placeholder="Type secret code...">
+        <p id="code-message" class="text-xs mt-2"></p>
+        <div class="options-container mt-4">
+            <button id="submit-code-btn" class="option-button">Activate Hack</button>
+            <button id="close-code-modal" class="option-button restart-button">Close</button>
+        </div>
+    </div>
+
+    <div id="race-info">
+        <p>Distance: <span id="distance-display">0</span> / 5000</p>
+        <p>Speed: <span id="speed-display">0.0</span> km/h</p>
+        <p>Status: <span id="status-display">Ready</span></p>
+    </div>
+    
+    <div id="game-over-message">
+        <h2 id="final-result"></h2>
+        <p id="loss-suggestion"></p>
+        <p>The race is over. Time for a break!</p>
+        <button id="restart-button" class="option-button">Play Again</button>
+    </div>
+
+    <button id="code-entry-btn" class="hidden">
+        Enter Code 
+        <span id="code-hint"></span>
+    </button>
+
+    <div id="instructions">
+        **Controls:** W or UP Arrow to Accelerate
+    </div>
+
+</div>
+
+<script>
+    // --- THREE.JS SETUP ---
+    let scene, camera, renderer;
+    let playerCar, botCar;
+    let clock = new THREE.Clock();
+    let isRacing = false;
+    let raceLoopId;
+
+    // --- GAME CONSTANTS ---
+    const TRACK_LENGTH = 5000;
+    const MAX_SPEED = 3.5;
+    const ACCELERATION = 0.05;
+    const DRAG = 0.02;
+    // Bot is intentionally faster (130% max speed)
+    const BOT_INITIAL_SPEED_FACTOR = 1.0; 
+    const BOT_FINAL_SPEED_FACTOR = 1.3; 
+    const BOT_SPEED_UP_DISTANCE = 1500; 
+    const CODE_REVEAL_DISTANCE = 2000; // NEW: Distance required to reveal the code
+
+    // --- CHEAT CONSTANTS ---
+    const SPEED_HACK_PLAYER_MULTIPLIER = 2.0; // Player max speed is doubled (200%)
+    const SPEED_HACK_BOT_MULTIPLIER = 0.3;    // Bot speed is reduced by 70% (30% of original speed)
+
+    // --- CODE CONSTANTS ---
+    const SECRET_CODE = "FREE";
+    const FINISH_Z = -TRACK_LENGTH + 10; // The finish line Z coordinate
+    
+    // --- GAME STATE ---
+    let gameState = {
+        driver: null,
+        carColor: null,
+        playerZ: 0, 
+        playerSpeed: 0,
+        botZ: 0,    
+        botSpeed: 0,
+        keys: {},
+        codeUsed: false, // Track if code was entered
+        speedHacked: false, // Track if speed hack is active
+        codeRevealed: false, // NEW: Track if the code has been revealed to the player
+    };
+    
+    // --- DOM ELEMENTS ---
+    const uiPanel = document.getElementById('selection-ui');
+    const startButton = document.getElementById('start-race-button');
+    const gameOverMessage = document.getElementById('game-over-message');
+    const restartButton = document.getElementById('restart-button');
+    const finalResultDisplay = document.getElementById('final-result');
+    const distanceDisplay = document.getElementById('distance-display');
+    const speedDisplay = document.getElementById('speed-display');
+    const statusDisplay = document.getElementById('status-display');
+    const lossSuggestion = document.getElementById('loss-suggestion');
+    const codeEntryBtn = document.getElementById('code-entry-btn');
+    const codeHint = document.getElementById('code-hint'); // NEW: Hint element
+    const codeModal = document.getElementById('code-modal');        
+    const codeInput = document.getElementById('code-input');        
+    const codeMessage = document.getElementById('code-message');    
+
+    // --- CAR & SCENE CREATION ---
+
+    /**
+     * Creates a simple 3D car mesh.
+     * @param {number} color Hex color for the car.
+     * @returns {THREE.Group} The 3D car object.
+     */
+    function createCar(color) {
+        const car = new THREE.Group();
+
+        // Main Body (Box)
+        const bodyGeometry = new THREE.BoxGeometry(1, 0.5, 2.5); // Width, Height, Depth (Length)
+        const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.position.set(0, 0.25, 0); 
+        car.add(body);
+
+        // Cockpit (Smaller Box)
+        const cockpitGeometry = new THREE.BoxGeometry(0.8, 0.4, 1.2);
+        const cockpitMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
+        cockpit.position.set(0, 0.65, 0.5);
+        car.add(cockpit);
+
+        // Wheels (Cylinders - simplified for performance)
+        const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+        const wheelGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 10);
+
+        function addWheel(x, z) {
+            const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheel.rotation.z = Math.PI / 2; // Lay cylinder flat
+            wheel.position.set(x, 0.05, z);
+            car.add(wheel);
+        }
+
+        addWheel(0.5, 0.8);
+        addWheel(-0.5, 0.8);
+        addWheel(0.5, -0.8);
+        addWheel(-0.5, -0.8);
+
+        return car;
+    }
+
+    /**
+     * Creates the road/track plane.
+     */
+    function createTrack() {
+        // Road surface (Dark Gray)
+        const roadGeometry = new THREE.PlaneGeometry(10, TRACK_LENGTH * 2); // Wide, long
+        const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x444444 });
+        const road = new THREE.Mesh(roadGeometry, roadMaterial);
+        road.rotation.x = -Math.PI / 2; // Lay flat
+        road.position.z = -TRACK_LENGTH; // Extend track backwards for visibility
+        road.receiveShadow = true;
+        scene.add(road);
+
+        // Center line (Dashed white stripes)
+        const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const stripeGeometry = new THREE.BoxGeometry(0.1, 0.01, 50); // Thin, long segment
+        const segmentCount = Math.floor(TRACK_LENGTH / 100) * 2;
+
+        for (let i = 0; i < segmentCount; i++) {
+            if (i % 2 === 0) {
+                const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+                stripe.position.set(0, 0.01, i * 50 - TRACK_LENGTH);
+                scene.add(stripe);
+            }
+        }
+        
+        // Finish Line
+        const finishLineGeometry = new THREE.BoxGeometry(10, 0.02, 1);
+        const finishLineMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const finishLine = new THREE.Mesh(finishLineGeometry, finishLineMaterial);
+        finishLine.position.set(0, 0.015, FINISH_Z - 10); // Adjust to place finish line correctly
+        scene.add(finishLine);
+    }
+
+    /**
+     * Initializes the Three.js scene, camera, and lighting.
+     */
+    function init3DScene() {
+        const container = document.getElementById('renderer-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Light blue sky
+
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, TRACK_LENGTH * 2);
+        // Position camera behind and above the player's car
+        camera.position.set(0, 3, 5); 
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(0, 10, 5);
+        scene.add(directionalLight);
+
+        // Create the track
+        createTrack();
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+    }
+    
+    /**
+     * Updates camera and renderer size on window resize.
+     */
+    function onWindowResize() {
+        const container = document.getElementById('renderer-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+
+    // --- GAME LOGIC ---
+
+    /**
+     * Sets up the cars and starts the race.
+     */
+    function startRace() {
+        if (isRacing || !gameState.carColor) return;
+        
+        // Hide selection UI, show code button, and hide game over
+        uiPanel.classList.add('hidden-ui');
+        gameOverMessage.classList.remove('visible');
+        codeEntryBtn.classList.remove('hidden'); // Show the button
+        
+        // Reset state
+        gameState.playerZ = 0; 
+        gameState.playerSpeed = 0;
+        gameState.botZ = 0;    
+        gameState.botSpeed = 0;
+        gameState.codeUsed = false; // Reset code status
+        gameState.speedHacked = false; // Reset hack status
+        gameState.codeRevealed = false; // Reset reveal status
+        isRacing = true;
+        
+        codeModal.classList.add('hidden-ui'); // Ensure modal is closed
+        codeInput.value = '';
+        codeMessage.textContent = '';
+        
+        // Remove old cars if they exist
+        if (playerCar) scene.remove(playerCar);
+        if (botCar) scene.remove(botCar);
+
+        // Create new player car with selected color
+        playerCar = createCar(gameState.carColor);
+        playerCar.position.set(-2, 0, 0); // Player on the left lane (Initial Z=0)
+        scene.add(playerCar);
+
+        // Create bot car (fixed color)
+        botCar = createCar(0xbb0000);
+        botCar.position.set(2, 0, 0); // Bot on the right lane (Initial Z=0)
+        scene.add(botCar);
+        
+        // Update status
+        statusDisplay.textContent = 'GO! Race to 5000.';
+        statusDisplay.style.color = '#e0fbff';
+
+        // Start the game loop
+        if (!raceLoopId) {
+            raceLoopId = requestAnimationFrame(animate);
+        }
+    }
+
+    /**
+     * Main animation and game loop.
+     */
+    function animate() {
+        const delta = clock.getDelta();
+
+        if (isRacing) {
+            updatePlayerCar(delta);
+            updateBotCar(delta);
+            updateCameraAndScene(); 
+            checkFinish();
+            updateUI();
+        }
+        
+        renderer.render(scene, camera);
+        raceLoopId = requestAnimationFrame(animate);
+    }
+    
+    /**
+     * Updates the player car's speed and position based on input.
+     */
+    function updatePlayerCar(delta) {
+        // Current speed limits
+        let currentMaxSpeed = MAX_SPEED;
+        const currentAcceleration = ACCELERATION;
+
+        // Apply speed hack if active: DOUBLE max speed!
+        if (gameState.speedHacked) {
+            currentMaxSpeed *= SPEED_HACK_PLAYER_MULTIPLIER;
+        }
+
+        // Handle input (W or Up Arrow for acceleration)
+        if (gameState.keys['w'] || gameState.keys['W'] || gameState.keys['ArrowUp']) {
+            gameState.playerSpeed += currentAcceleration;
+        } else {
+            // Apply drag (slow down if not accelerating)
+            gameState.playerSpeed -= DRAG;
+        }
+
+        // Clamp speed
+        gameState.playerSpeed = Math.min(Math.max(gameState.playerSpeed, 0), currentMaxSpeed);
+        
+        // Update position (Distance = Speed * Time) - Moves in Negative Z direction
+        gameState.playerZ -= gameState.playerSpeed * 60 * delta; 
+
+        // Rotate wheels (aesthetic)
+        const wheelRotationSpeed = gameState.playerSpeed * 0.5;
+        playerCar.traverse((child) => {
+            if (child.geometry && child.geometry.type === 'CylinderGeometry') {
+                child.rotation.y -= wheelRotationSpeed;
+            }
+        });
+    }
+    
+    /**
+     * Updates the bot car's speed and position (challenging AI with phase change).
+     */
+    function updateBotCar(delta) {
+        // Current absolute distance traveled by the bot (since Z is negative)
+        const currentBotDistance = Math.abs(gameState.botZ);
+        
+        // Determine the target speed based on distance
+        let targetSpeedFactor;
+        
+        if (currentBotDistance < BOT_SPEED_UP_DISTANCE) {
+            // Phase 1: Fast start
+            targetSpeedFactor = BOT_INITIAL_SPEED_FACTOR;
+        } else {
+            // Phase 2: Gradually increase factor up to the final factor
+            const speedUpRange = TRACK_LENGTH - BOT_SPEED_UP_DISTANCE;
+            const progress = (currentBotDistance - BOT_SPEED_UP_DISTANCE) / speedUpRange;
+            
+            targetSpeedFactor = BOT_INITIAL_SPEED_FACTOR + 
+                                (BOT_FINAL_SPEED_FACTOR - BOT_INITIAL_SPEED_FACTOR) * Math.min(progress * 2, 1); 
+        }
+        
+        let targetSpeed = MAX_SPEED * targetSpeedFactor;
+        
+        // Apply speed hack if active: greatly reduce bot speed!
+        if (gameState.speedHacked) {
+            targetSpeed *= SPEED_HACK_BOT_MULTIPLIER;
+        }
+
+        const speedDifference = targetSpeed - gameState.botSpeed;
+        
+        // Simple, realistic acceleration: Bot gradually matches target speed
+        if (speedDifference > 0) {
+            gameState.botSpeed += Math.min(speedDifference * 0.02, 0.05); // Smooth acceleration
+        } else if (speedDifference < 0) {
+            gameState.botSpeed += Math.max(speedDifference * 0.01, -0.05); // Smooth deceleration
+        }
+        
+        // Apply a slight random speed variation for 'realism'
+        gameState.botSpeed += (Math.random() - 0.5) * 0.01;
+
+        // Clamp bot speed
+        gameState.botSpeed = Math.min(Math.max(gameState.botSpeed, 0), targetSpeed * 1.05); 
+        
+        // Update position - Moves in Negative Z direction
+        gameState.botZ -= gameState.botSpeed * 60 * delta;
+
+        // Rotate wheels (aesthetic)
+        const wheelRotationSpeed = gameState.botSpeed * 0.5;
+        botCar.traverse((child) => {
+            if (child.geometry && child.geometry.type === 'CylinderGeometry') {
+                child.rotation.y -= wheelRotationSpeed;
+            }
+        });
+    }
+
+    /**
+     * Updates the camera position to simulate movement along the track.
+     */
+    function updateCameraAndScene() {
+        // Camera follows the player's Z position, staying 5 units behind.
+        camera.position.z = gameState.playerZ + 5; 
+        
+        // Player car Z position is its actual Z coordinate in the world.
+        playerCar.position.z = gameState.playerZ; 
+        
+        // Bot car position is its actual Z coordinate in the world.
+        botCar.position.z = gameState.botZ;
+        
+        // Make the camera look slightly ahead of the player car
+        camera.lookAt(playerCar.position.x, playerCar.position.y, playerCar.position.z - 5);
+    }
+
+    /**
+     * Updates the visible status displays and the code hint.
+     */
+    function updateUI() {
+        const currentDistance = Math.round(Math.abs(gameState.playerZ)); // Distance is absolute value of Z
+        
+        distanceDisplay.textContent = `${currentDistance} / ${TRACK_LENGTH}`;
+        speedDisplay.textContent = gameState.playerSpeed.toFixed(2);
+        
+        // Check who is ahead (smaller Z (more negative) means further ahead)
+        const playerAhead = gameState.playerZ < gameState.botZ; 
+        
+        if (currentDistance > TRACK_LENGTH * 0.9) {
+            statusDisplay.textContent = 'FINISHING STRETCH!';
+            statusDisplay.style.color = '#ff6b6b';
+        } else {
+            statusDisplay.textContent = playerAhead ? 'In the Lead!' : 'Trailing...';
+            statusDisplay.style.color = playerAhead ? '#4CAF50' : '#e0fbff';
+        }
+
+        // Code Reveal Logic
+        if (gameState.codeUsed) {
+             statusDisplay.textContent = 'HACK ACTIVE: Player BOOSTED!';
+             statusDisplay.style.color = '#6b8bff';
+             codeHint.textContent = ' (Hack Active)';
+             codeHint.style.color = '#4CAF50';
+        } else if (currentDistance >= CODE_REVEAL_DISTANCE) {
+            // Reveal the code
+            gameState.codeRevealed = true;
+            codeHint.textContent = ` (HINT: ${SECRET_CODE})`; 
+            codeHint.style.color = '#ffeb3b';
+        } else {
+            // Show progress towards the code reveal
+            const progress = currentDistance / CODE_REVEAL_DISTANCE;
+            const percentage = Math.floor(progress * 100);
+            codeHint.textContent = ` (${percentage}% to Code)`;
+            codeHint.style.color = '#ccc';
+        }
+    }
+    
+    /**
+     * Checks if the race has ended and updates the result based on the winner.
+     */
+    function checkFinish() {
+        // Finish line is at Z = -TRACK_LENGTH + 10.
+        const finishZ = FINISH_Z;
+        
+        if (gameState.playerZ <= finishZ || gameState.botZ <= finishZ) {
+            isRacing = false;
+            codeEntryBtn.classList.add('hidden'); // Hide code button
+            codeModal.classList.add('hidden-ui'); // Ensure modal is closed
+            
+            let result;
+            
+            // The car with the smaller (more negative) Z wins
+            if (gameState.playerZ < gameState.botZ) {
+                // Player Wins
+                if (gameState.codeUsed) {
+                    result = 'YOU WIN! (SPEED HACK ACTIVATED)'; // Special message for code win
+                } else {
+                    result = 'YOU WIN!'; // Standard win message
+                }
+                finalResultDisplay.style.color = '#4CAF50';
+                lossSuggestion.style.display = 'none';
+            } else {
+                // Bot Wins - Suggest player error
+                result = 'BOT WINS... BY A HAIR!';
+                finalResultDisplay.style.color = '#ff6b6b';
+                lossSuggestion.style.display = 'block';
+
+                const excuses = [
+                    "Did you lift your foot off the accelerator too early? You lost momentum!",
+                    "You clearly missed a shift! Keep that speed meter pegged!",
+                    "It looks like a momentary lapse of focus cost you the lead. Stay sharp next time!",
+                    "You hesitated on the final straight. Precision and commitment are key!",
+                    "A split-second reaction is all it takes. Next time, drive harder, faster, better!",
+                ];
+                
+                // Set the specific loss message suggesting player mistake
+                lossSuggestion.textContent = excuses[Math.floor(Math.random() * excuses.length)];
+            }
+            
+            finalResultDisplay.textContent = result;
+            gameOverMessage.classList.add('visible');
+            statusDisplay.textContent = 'Race Finished!';
+        }
+    }
+
+    /**
+     * Handles the attempt to enter the secret code.
+     */
+    function handleCodeEntry() {
+        if (!isRacing) return;
+
+        if (codeInput.value.toUpperCase() === SECRET_CODE) {
+            gameState.speedHacked = true; // Activate the speed hack
+            gameState.codeUsed = true; 
+            codeMessage.textContent = "CODE ACCEPTED! Player speed BOOSTED, Bot speed SLOWED!";
+            codeMessage.style.color = '#4CAF50';
+            
+            // Close the modal after a moment so the player can read the success message
+            setTimeout(() => codeModal.classList.add('hidden-ui'), 1000); 
+        } else {
+            codeMessage.textContent = "Invalid Code. Try again.";
+            codeMessage.style.color = '#ff6b6b';
+        }
+        codeInput.value = ''; // Clear input after attempt
+    }
+    
+    /**
+     * Resets the game to the selection screen.
+     */
+    function resetGameToSelection() {
+        isRacing = false;
+        
+        // Clear any lingering requestAnimationFrame
+        if (raceLoopId) {
+            cancelAnimationFrame(raceLoopId);
+            raceLoopId = null;
+        }
+
+        // Reset state
+        gameState.playerZ = 0; 
+        gameState.playerSpeed = 0;
+        gameState.botZ = 0;    
+        gameState.botSpeed = 0;
+        gameState.driver = null;
+        gameState.carColor = null;
+        gameState.codeUsed = false; 
+        gameState.speedHacked = false; 
+        gameState.codeRevealed = false; // Reset reveal status
+
+        // Reset UI
+        uiPanel.classList.remove('hidden-ui');
+        gameOverMessage.classList.remove('visible');
+        codeEntryBtn.classList.add('hidden'); // Hide code button on selection screen
+        codeModal.classList.add('hidden-ui'); // Hide modal
+        startButton.disabled = true;
+        startButton.textContent = 'Select Driver and Car to Start';
+        document.querySelectorAll('.option-button, .car-option').forEach(el => el.classList.remove('selected'));
+        statusDisplay.textContent = 'Ready';
+        distanceDisplay.textContent = '0 / 5000';
+        speedDisplay.textContent = '0.0';
+        lossSuggestion.textContent = ''; 
+        codeHint.textContent = ''; // Clear hint
+        
+        // Reset camera/scene position to start view
+        camera.position.set(0, 3, 5); 
+        camera.lookAt(0, 0, 0);
+    }
+
+    // --- EVENT HANDLERS ---
+    
+    /**
+     * Handles selection button clicks (Driver and Car).
+     */
+    function handleSelection(e) {
+        const target = e.target.closest('.option-button, .car-option');
+        if (!target) return;
+
+        const type = target.dataset.type;
+        const value = target.dataset.value;
+
+        // Clear previous selection for the group
+        document.querySelectorAll(`[data-type="${type}"]`).forEach(btn => btn.classList.remove('selected'));
+        target.classList.add('selected');
+
+        if (type === 'driver') {
+            gameState.driver = value;
+        } else if (type === 'car') {
+            gameState.carColor = new THREE.Color(value).getHex();
+        }
+
+        // Check if both are selected
+        if (gameState.driver && gameState.carColor) {
+            startButton.disabled = false;
+            startButton.textContent = `Start Race with ${gameState.driver}`;
+        }
+    }
+
+    // Add event listeners to the selection UI
+    document.querySelectorAll('.selection-group').forEach(group => {
+        group.addEventListener('click', handleSelection);
+    });
+
+    startButton.addEventListener('click', startRace);
+    restartButton.addEventListener('click', resetGameToSelection);
+    
+    // Code entry button handlers
+    codeEntryBtn.addEventListener('click', () => {
+        if (isRacing) {
+            codeModal.classList.remove('hidden-ui');
+            codeInput.focus();
+        }
+    });
+
+    document.getElementById('close-code-modal').addEventListener('click', () => {
+        codeModal.classList.add('hidden-ui');
+        codeMessage.textContent = '';
+        codeInput.value = '';
+    });
+
+    document.getElementById('submit-code-btn').addEventListener('click', handleCodeEntry);
+    codeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            handleCodeEntry();
+        }
+    });
+
+
+    // Keyboard controls for player movement
+    document.addEventListener('keydown', (e) => {
+        gameState.keys[e.key] = true;
+        // Prevent scrolling if in race and pressing movement keys
+        if (isRacing && ['ArrowUp', 'w', 'W'].includes(e.key)) {
+            e.preventDefault(); 
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        gameState.keys[e.key] = false;
+    });
+
+    // Touch controls: Tap the game area to accelerate
+    document.getElementById('renderer-container').addEventListener('touchstart', (e) => {
+        if (!isRacing || !codeModal.classList.contains('hidden-ui')) return;
+        e.preventDefault(); 
+        gameState.keys['ArrowUp'] = true; 
+    });
+
+    document.getElementById('renderer-container').addEventListener('touchend', (e) => {
+        if (!isRacing) return;
+        e.preventDefault();
+        gameState.keys['ArrowUp'] = false;
+    });
+
+    // --- INITIALIZATION ---
+    window.onload = () => {
+        init3DScene();
+        // Render one frame to show the initial scene behind the UI
+        renderer.render(scene, camera); 
+    };
+
+</script>
+</body>
+</html>
